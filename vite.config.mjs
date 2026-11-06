@@ -1,3 +1,3 @@
 import { appViteConfig } from '@dscpln/ui-kit/vite'
 
-export default appViteConfig(import.meta.url, { inputs: ['index.html', 'lockdown.html'] })
+export default appViteConfig(import.meta.url, { inputs: ['index.html', 'standalone.html'] })
