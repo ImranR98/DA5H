@@ -17,12 +17,24 @@
     padding: var(--space-5);
     background: var(--surface);
     border: 1px solid var(--border);
+    border-top: 3px solid var(--card-accent, var(--border));
     border-radius: var(--radius);
     box-shadow: var(--shadow-sm);
     text-decoration: none;
     color: var(--text);
     transition: box-shadow 0.15s ease, transform 0.15s ease;
 }
+
+/* Each service keeps its own brand colour on the DA5H dashboard. */
+.portal-card[data-app="dscpln"] { --card-accent: #2f6fed; }
+.portal-card[data-app="watxt"] { --card-accent: #128a55; }
+.portal-card[data-app="fl0w"] { --card-accent: #7c3aed; }
+.portal-card[data-app="lockdown"] { --card-accent: #c1121f; }
+
+[data-theme="dark"] .portal-card[data-app="dscpln"] { --card-accent: #60a5fa; }
+[data-theme="dark"] .portal-card[data-app="watxt"] { --card-accent: #4cc38a; }
+[data-theme="dark"] .portal-card[data-app="fl0w"] { --card-accent: #a78bfa; }
+[data-theme="dark"] .portal-card[data-app="lockdown"] { --card-accent: #fb7185; }
 
 .portal-card:hover {
     box-shadow: var(--shadow-md);
@@ -55,8 +67,8 @@
     height: 2.75rem;
     flex: 0 0 auto;
     border-radius: var(--radius-sm);
-    background: var(--accent-soft);
-    color: var(--accent);
+    background: color-mix(in srgb, var(--card-accent, var(--accent)) 12%, transparent);
+    color: var(--card-accent, var(--accent));
 }
 
 .portal-card__title {
@@ -118,6 +130,7 @@
 }
 
 .portal-card__value {
+    color: var(--card-accent, var(--text));
     font-size: clamp(2rem, 3.5vw, 2.8rem);
     font-weight: 750;
     line-height: 1;
@@ -149,7 +162,7 @@
     display: block;
     height: 100%;
     border-radius: inherit;
-    background: var(--ok);
+    background: var(--card-accent, var(--ok));
 }
 
 .portal-card__progress-fill.is-warn {

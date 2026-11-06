@@ -10,6 +10,7 @@ export default function FunctionCard({ fn, card }) {
     <a
       className={`portal-card${offline ? ' is-offline' : ''}`}
       href={fn.url || `/${fn.path}`}
+      data-app={fn.path}
       data-testid={`card-${fn.path}`}
       aria-disabled={offline}
       onClick={(event) => { if (offline) event.preventDefault() }}
