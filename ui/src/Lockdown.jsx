@@ -15,7 +15,9 @@ import {
 } from '@dscpln/ui-kit'
 import './lockdown.css'
 
-const LOCKDOWN_BASE = typeof window !== 'undefined' && window.location.pathname.startsWith('/lockdown') ? '/lockdown' : ''
+const LOCKDOWN_BASE = typeof window !== 'undefined'
+  ? (window.DA5H_LOCKDOWN_BASE ?? (window.location.pathname.startsWith('/lockdown') ? '/lockdown' : ''))
+  : ''
 
 const DURATIONS = [
   { value: '600', label: '10 minutes' },

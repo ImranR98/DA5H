@@ -40,8 +40,7 @@ export function createDa5hApp(options = {}) {
       // before the mounted lockdown app so the exact /lockdown path is the UI,
       // while /lockdown/api/* reaches the module server.
       router.get(['/lockdown', '/lockdown/'], (req, res) => {
-        const page = path.join(STATIC_DIR, 'lockdown.html')
-        res.type('html').send(fs.readFileSync(fs.existsSync(page) ? page : path.join(STATIC_DIR, 'index.html')))
+        res.type('html').send(fs.readFileSync(path.join(STATIC_DIR, 'index.html')))
       })
 
       router.use('/lockdown', lockdown.app)
