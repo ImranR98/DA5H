@@ -38,7 +38,7 @@
       "name": "Lockdown",
       "description": "Temporarily block configured host ports",
       "kind": "lockdown",
-      "internalUrl": "http://127.0.0.1:8080"
+      "internalUrl": "http://127.0.0.1:8080/lockdown"
     }
   ]
 }
