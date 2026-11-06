@@ -183,10 +183,10 @@ async function balanceDetail(fn) {
     ? [
         stat('Budget', moneyText(budget, code, symbol)),
         stat('Left', moneyText(left, code, symbol), left < 0 ? 'over' : ''),
-        stat('Transactions', formatNumber(summary.transactions ?? 0)),
+        stat('Txns', formatNumber(summary.transactions ?? 0)),
       ]
     : [
-        stat('Transactions', formatNumber(summary.transactions ?? 0)),
+        stat('Txns', formatNumber(summary.transactions ?? 0)),
         stat('Currencies', formatNumber(summary.currencies ?? 0)),
         stat('Budget', 'Not set', 'warn'),
       ]
