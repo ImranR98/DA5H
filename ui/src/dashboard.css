@@ -190,11 +190,15 @@
 }
 
 .portal-card__stat-label {
+    display: block;
+    overflow: hidden;
     color: var(--text-muted);
     font-size: var(--fs-2xs);
     font-weight: 700;
     letter-spacing: 0.06em;
+    text-overflow: ellipsis;
     text-transform: uppercase;
+    white-space: nowrap;
 }
 
 .portal-card__stat-value {
