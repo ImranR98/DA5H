@@ -10,7 +10,8 @@
       "icon": "dollar",
       "name": "D$CPLN",
       "description": "Budget dashboard backed by the live workbook",
-      "kind": "balance"
+      "kind": "balance",
+      "internalUrl": "http://dscpln:3300"
     },
     {
       "path": "watxt",
@@ -18,7 +19,8 @@
       "icon": "message",
       "name": "W@TXT",
       "description": "Browse, import and merge WhatsApp chat exports",
-      "kind": "watxt"
+      "kind": "watxt",
+      "internalUrl": "http://watxt:8787"
     },
     {
       "path": "fl0w",
@@ -26,7 +28,8 @@
       "icon": "workflow",
       "name": "FL0W",
       "description": "Scheduled tasks and file pipelines",
-      "kind": "flow"
+      "kind": "flow",
+      "internalUrl": "http://fl0w:8085"
     },
     {
       "path": "lockdown",
@@ -34,7 +37,8 @@
       "icon": "lock",
       "name": "Lockdown",
       "description": "Temporarily block configured host ports",
-      "kind": "lockdown"
+      "kind": "lockdown",
+      "internalUrl": ""
     }
   ]
 }

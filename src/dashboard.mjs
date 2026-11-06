@@ -17,6 +17,7 @@ export const DEFAULT_FUNCTIONS = [
   {
     path: 'dscpln',
     url: env('DSCPLN_URL', 'http://localhost:3300/'),
+    internalUrl: env('DSCPLN_INTERNAL_URL', ''),
     icon: 'dollar',
     name: 'D$CPLN',
     description: 'Budget dashboard backed by the live workbook',
@@ -25,6 +26,7 @@ export const DEFAULT_FUNCTIONS = [
   {
     path: 'watxt',
     url: env('WATXT_URL', 'http://localhost:8787/'),
+    internalUrl: env('WATXT_INTERNAL_URL', ''),
     icon: 'message',
     name: 'W@TXT',
     description: 'Browse, import and merge WhatsApp chat exports',
@@ -33,6 +35,7 @@ export const DEFAULT_FUNCTIONS = [
   {
     path: 'fl0w',
     url: env('FL0W_URL', 'http://localhost:8085/'),
+    internalUrl: env('FL0W_INTERNAL_URL', ''),
     icon: 'workflow',
     name: 'FL0W',
     description: 'Scheduled tasks and file pipelines',
@@ -41,6 +44,7 @@ export const DEFAULT_FUNCTIONS = [
   {
     path: 'lockdown',
     url: '/lockdown',
+    internalUrl: '',
     icon: 'lock',
     name: 'Lockdown',
     description: 'Temporarily block configured host ports',
@@ -69,6 +73,7 @@ export function normalizeFunctions(value) {
       return {
         path: fnPath,
         url: String(entry.url ?? '').trim() || `/${fnPath}`,
+        internalUrl: String(entry.internalUrl ?? '').trim(),
         icon: String(entry.icon ?? 'boxes'),
         name: String(entry.name ?? entry.path ?? ''),
         description: String(entry.description ?? ''),
@@ -94,8 +99,11 @@ export function validateConfig(cfg) {
   for (const fn of cfg.functions ?? []) {
     if (!fn.path || !fn.name) throw new ValidationError('every function needs a path and a name')
     if (!/^[A-Za-z0-9._-]+$/.test(fn.path)) throw new ValidationError(`function path is invalid: ${fn.path}`)
-    if (fn.url && !/^https?:\/\//i.test(fn.url) && !fn.url.startsWith('/')) {
-      throw new ValidationError(`function ${fn.path}: url must be absolute or start with /`)
+    for (const field of ['url', 'internalUrl']) {
+      const value = fn[field]
+      if (value && !/^https?:\/\//i.test(value) && !value.startsWith('/')) {
+        throw new ValidationError(`function ${fn.path}: ${field} must be absolute or start with /`)
+      }
     }
     if (seen.has(fn.path)) throw new ValidationError(`duplicate function path: ${fn.path}`)
     seen.add(fn.path)

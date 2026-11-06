@@ -45,7 +45,8 @@ export function createDa5hApp(options = {}) {
         const fn = functions.find((entry) => entry.path === req.params.path)
         if (!fn) return res.status(404).json({ error: 'Unknown service' })
         const host = req.headers.host ?? '127.0.0.1:8080'
-        const base = /^https?:\/\//i.test(fn.url) ? fn.url : new URL(fn.url, `http://${host}`).toString()
+        const source = fn.internalUrl || fn.url
+        const base = /^https?:\/\//i.test(source) ? source : new URL(source, `http://${host}`).toString()
         const target = `${base.replace(/\/+$/, '')}${req.path.startsWith('/') ? req.path : `/${req.path}`}`
         const headers = {}
         if (req.headers['remote-user']) headers['Remote-User'] = req.headers['remote-user']
