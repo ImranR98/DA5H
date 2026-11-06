@@ -203,7 +203,13 @@ test('DA5H serves the Lockdown module and its API', async (t) => {
 })
 
 test('DA5H proxies configured service reads and forwards the identity', async (t) => {
+  const seen = []
   const upstream = http.createServer((req, res) => {
+    seen.push({ method: req.method, path: req.url, headers: req.headers })
+    if (req.url === '/redirect') {
+      res.writeHead(302, { Location: '/secret' }).end()
+      return
+    }
     res.writeHead(200, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify({ ok: true, path: req.url, user: req.headers['remote-user'] ?? null }))
   })
@@ -216,10 +222,27 @@ test('DA5H proxies configured service reads and forwards the identity', async (t
   await putConfig(base, {
     functions: [{ path: 'demo', url: upstreamUrl, icon: 'boxes', name: 'Demo', description: 'Demo', kind: 'scheduled' }],
   })
-  const proxied = await fetch(`${base}/api/services/demo/api/health`, { headers: { 'Remote-User': 'imranr' } })
+  const proxied = await fetch(`${base}/api/services/demo/api/health`, {
+    headers: { 'Remote-User': 'imranr', Cookie: 'session=secret' },
+  })
   assert.equal(proxied.status, 200)
   assert.deepEqual(await proxied.json(), { ok: true, path: '/api/health', user: 'imranr' })
+  assert.equal(seen.at(-1).headers.cookie, undefined)
 
   const unknown = await fetch(`${base}/api/services/missing/api/health`)
   assert.equal(unknown.status, 404)
+
+  const write = await fetch(`${base}/api/services/demo/api/config`, { method: 'POST', body: '{}' })
+  assert.equal(write.status, 405)
+  assert.equal(seen.length, 1)
+
+  for (const bad of ['%2e%2e%2fsecret', '..%2fsecret', '%5csecret']) {
+    const response = await fetch(`${base}/api/services/demo/${bad}`)
+    assert.equal(response.status, 400, bad)
+  }
+
+  // Redirects are surfaced, never followed by the proxy.
+  const redirect = await fetch(`${base}/api/services/demo/redirect`, { redirect: 'manual' })
+  assert.equal(redirect.status, 302)
+  assert.equal(seen.at(-1).path, '/redirect')
 })

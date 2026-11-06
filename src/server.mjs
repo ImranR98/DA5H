@@ -40,26 +40,82 @@ export function createDa5hApp(options = {}) {
       // the sibling subdomains directly (CORS), so DA5H proxies the small set
       // of health/summary endpoints to the configured service URLs and forwards
       // the Authelia identity. Only configured function paths are reachable.
+      //
+      // This is a read-only proxy: it never forwards cookies or the request
+      // body, never follows an upstream redirect, and caps the response size.
+      // Without those limits a misconfigured (or compromised) sibling could
+      // turn the dashboard into an open write path or a memory sink.
       router.use('/api/services/:path', asyncRoute(async (req, res) => {
+        if (req.method !== 'GET' && req.method !== 'HEAD') {
+          res.set('Allow', 'GET, HEAD')
+          return res.status(405).json({ error: 'Service reads are read-only' })
+        }
         const functions = dashboard.config.get()?.functions ?? []
         const fn = functions.find((entry) => entry.path === req.params.path)
         if (!fn) return res.status(404).json({ error: 'Unknown service' })
+
+        const suffix = String(req.path ?? '/')
+        let decoded
+        try {
+          decoded = decodeURIComponent(suffix)
+        } catch {
+          return res.status(400).json({ error: 'Invalid service path' })
+        }
+        const hasControl = [...decoded].some((ch) => ch.charCodeAt(0) < 32 || ch.charCodeAt(0) === 127)
+        if (!decoded.startsWith('/') || decoded.includes('\\') || decoded.includes('..') || hasControl) {
+          return res.status(400).json({ error: 'Invalid service path' })
+        }
+
         const host = req.headers.host ?? '127.0.0.1:8080'
         const source = fn.internalUrl || fn.url
-        const base = /^https?:\/\//i.test(source) ? source : new URL(source, `http://${host}`).toString()
-        const target = `${base.replace(/\/+$/, '')}${req.path.startsWith('/') ? req.path : `/${req.path}`}`
-        const headers = {}
-        if (req.headers['remote-user']) headers['Remote-User'] = req.headers['remote-user']
+        let base
+        try {
+          base = new URL(source, `http://${host}`)
+        } catch {
+          return res.status(502).json({ error: 'Service URL is invalid' })
+        }
+        if (!base.pathname.endsWith('/')) base.pathname += '/'
+        const target = new URL(decoded.replace(/^\/+/, ''), base)
+
+        const headers = { Accept: 'application/json' }
+        if (req.headers['remote-user']) headers['Remote-User'] = String(req.headers['remote-user'])
         let upstream
         try {
-          upstream = await fetch(target, { headers, signal: AbortSignal.timeout(8000) })
+          upstream = await fetch(target, {
+            method: req.method,
+            headers,
+            redirect: 'manual',
+            signal: AbortSignal.timeout(8000),
+          })
         } catch (err) {
           return res.status(502).json({ error: `service unavailable: ${err.message}` })
         }
-        const body = Buffer.from(await upstream.arrayBuffer())
+
+        const MAX_BYTES = 2 * 1024 * 1024
+        const declared = Number(upstream.headers.get('content-length') ?? 0)
+        if (Number.isFinite(declared) && declared > MAX_BYTES) {
+          await upstream.body?.cancel().catch(() => {})
+          return res.status(502).json({ error: 'service response is too large' })
+        }
+        let body = Buffer.alloc(0)
+        if (req.method !== 'HEAD' && upstream.body) {
+          const chunks = []
+          let total = 0
+          for await (const chunk of upstream.body) {
+            total += chunk.length
+            if (total > MAX_BYTES) {
+              await upstream.body.cancel().catch(() => {})
+              return res.status(502).json({ error: 'service response is too large' })
+            }
+            chunks.push(Buffer.from(chunk))
+          }
+          body = Buffer.concat(chunks)
+        }
+
+        res.set('Cache-Control', 'no-store')
         const type = upstream.headers.get('content-type')
         if (type) res.type(type)
-        res.status(upstream.status).send(body)
+        res.status(upstream.status).send(req.method === 'HEAD' ? undefined : body)
       }))
 
       // Serve the single-page UI for the Lockdown module. This route must come

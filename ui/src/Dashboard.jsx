@@ -10,6 +10,8 @@ import {
 } from 'lucide-react'
 import {
   AppHeader,
+  Button,
+  Page,
   formatBytes,
   getBrand,
   formatDateTime,
@@ -245,6 +247,7 @@ export default function App() {
   cardsRef.current = cards
   const [checkedAt, setCheckedAt] = useState(null)
   const [busy, setBusy] = useState(false)
+  const busyRef = useRef(false)
   const settingsRef = useRef(null)
   const [testing, setTesting] = useState(false)
   const [testStatus, setTestStatus] = useState(null)
@@ -295,30 +298,38 @@ export default function App() {
   )
 
   const refresh = async (list = functions) => {
+    // Called directly from onClick in older builds: an Event is not a list.
+    if (!Array.isArray(list)) list = functions
+    if (busyRef.current) return
+    busyRef.current = true
     setBusy(true)
-    const next = {}
-    await Promise.all(
-      list.map(async (fn) => {
-        const online = await ping(fnApi(fn, 'api/health'))
-        const previous = cardsRef.current[fn.path]
-        let card = { ...EMPTY, loaded: true, online }
-        if (online) {
-          try {
-            card = { ...card, ...(await (DETAILS[fn.kind] ?? scheduledDetail)(fn)) }
-          } catch {
-            card = { ...card, footer: { text: 'Summary unavailable', tone: 'warn' } }
+    try {
+      const next = {}
+      await Promise.all(
+        list.map(async (fn) => {
+          const online = await ping(fnApi(fn, 'api/health'))
+          const previous = cardsRef.current[fn.path]
+          let card = { ...EMPTY, loaded: true, online }
+          if (online) {
+            try {
+              card = { ...card, ...(await (DETAILS[fn.kind] ?? scheduledDetail)(fn)) }
+            } catch {
+              card = { ...card, footer: { text: 'Summary unavailable', tone: 'warn' } }
+            }
+          } else {
+            // Keep the last known summary so an offline tile can explain itself.
+            card = { ...EMPTY, ...(previous ?? {}), loaded: true, online: false, issue: true }
           }
-        } else {
-          // Keep the last known summary so an offline tile can explain itself.
-          card = { ...EMPTY, ...(previous ?? {}), loaded: true, online: false, issue: true }
-        }
-        next[fn.path] = card
-      }),
-    )
-    cardsRef.current = next
-    setCards(next)
-    setCheckedAt(Date.now())
-    setBusy(false)
+          next[fn.path] = card
+        }),
+      )
+      cardsRef.current = next
+      setCards(next)
+      setCheckedAt(Date.now())
+    } finally {
+      busyRef.current = false
+      setBusy(false)
+    }
   }
 
   useEffect(() => {
@@ -364,26 +375,22 @@ export default function App() {
         )}
         actions={(
           <>
-            <button className="outline secondary icon-button" type="button" aria-label="Notification settings" title="Notification settings"
-              onClick={openSettings} data-testid="settings-open">
-              <Settings size={16} strokeWidth={1.8} />
-            </button>
-            <button className="outline secondary icon-button" type="button" aria-label="Refresh status" title="Refresh status"
-              disabled={busy} onClick={refresh}>
-              <RefreshCw size={16} strokeWidth={1.8} />
-            </button>
+            <Button variant="outline" icon={Settings} aria-label="Notification settings" title="Notification settings"
+              onClick={openSettings} data-testid="settings-open" />
+            <Button variant="outline" icon={RefreshCw} aria-label="Refresh status" title="Refresh status"
+              disabled={busy} onClick={() => refresh()} />
             <ThemeToggle />
           </>
         )}
       />
 
-      <main>
+      <Page width="wide">
         <div className="portal-grid">
           {functions.map((fn) => (
             <FunctionCard key={fn.path} fn={fn} card={cards[fn.path]} />
           ))}
         </div>
-      </main>
+      </Page>
 
       <SettingsDialog
         ref={settingsRef}
