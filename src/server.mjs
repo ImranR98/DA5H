@@ -2,7 +2,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { createApp } from '@dscpln/server-kit'
+import { asyncRoute, createApp } from '@dscpln/server-kit'
 import { createDashboard } from './dashboard.mjs'
 import { createLockdownApp } from './lockdown/server.mjs'
 
@@ -35,6 +35,31 @@ export function createDa5hApp(options = {}) {
     jsonBody: true,
     routes: (router) => {
       dashboard.routes(router)
+
+      // Same-origin service reads for the dashboard. The browser cannot call
+      // the sibling subdomains directly (CORS), so DA5H proxies the small set
+      // of health/summary endpoints to the configured service URLs and forwards
+      // the Authelia identity. Only configured function paths are reachable.
+      router.use('/api/services/:path', asyncRoute(async (req, res) => {
+        const functions = dashboard.config.get()?.functions ?? []
+        const fn = functions.find((entry) => entry.path === req.params.path)
+        if (!fn) return res.status(404).json({ error: 'Unknown service' })
+        const host = req.headers.host ?? '127.0.0.1:8080'
+        const base = /^https?:\/\//i.test(fn.url) ? fn.url : new URL(fn.url, `http://${host}`).toString()
+        const target = `${base.replace(/\/+$/, '')}${req.path.startsWith('/') ? req.path : `/${req.path}`}`
+        const headers = {}
+        if (req.headers['remote-user']) headers['Remote-User'] = req.headers['remote-user']
+        let upstream
+        try {
+          upstream = await fetch(target, { headers, signal: AbortSignal.timeout(8000) })
+        } catch (err) {
+          return res.status(502).json({ error: `service unavailable: ${err.message}` })
+        }
+        const body = Buffer.from(await upstream.arrayBuffer())
+        const type = upstream.headers.get('content-type')
+        if (type) res.type(type)
+        res.status(upstream.status).send(body)
+      }))
 
       // Serve the single-page UI for the Lockdown module. This route must come
       // before the mounted lockdown app so the exact /lockdown path is the UI,

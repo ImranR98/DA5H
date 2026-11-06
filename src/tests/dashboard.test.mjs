@@ -201,3 +201,25 @@ test('DA5H serves the Lockdown module and its API', async (t) => {
   assert.equal(status.presets.length, 1)
   assert.equal(status.presets[0].id, 'public-web')
 })
+
+test('DA5H proxies configured service reads and forwards the identity', async (t) => {
+  const upstream = http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({ ok: true, path: req.url, user: req.headers['remote-user'] ?? null }))
+  })
+  upstream.listen(0, '127.0.0.1')
+  await once(upstream, 'listening')
+  t.after(() => new Promise((resolve) => upstream.close(resolve)))
+  const upstreamUrl = `http://127.0.0.1:${upstream.address().port}/`
+
+  const { base } = await fixture(t)
+  await putConfig(base, {
+    functions: [{ path: 'demo', url: upstreamUrl, icon: 'boxes', name: 'Demo', description: 'Demo', kind: 'scheduled' }],
+  })
+  const proxied = await fetch(`${base}/api/services/demo/api/health`, { headers: { 'Remote-User': 'imranr' } })
+  assert.equal(proxied.status, 200)
+  assert.deepEqual(await proxied.json(), { ok: true, path: '/api/health', user: 'imranr' })
+
+  const unknown = await fetch(`${base}/api/services/missing/api/health`)
+  assert.equal(unknown.status, 404)
+})

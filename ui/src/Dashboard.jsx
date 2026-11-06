@@ -41,12 +41,8 @@ const DEFAULT_FUNCTIONS = [
   { path: 'lockdown', url: '/lockdown', icon: 'lock', name: 'Lockdown', description: 'Temporarily block configured host ports', kind: 'lockdown' },
 ]
 
-const fnBase = (fn) => {
-  const url = fn.url || `/${fn.path}`
-  return url.endsWith('/') ? url : `${url}/`
-}
-
-const fnApi = (fn, suffix) => `${fnBase(fn)}${String(suffix).replace(/^\/+/, '')}`
+// Same-origin proxy: the browser cannot read the sibling subdomains directly.
+const fnApi = (fn, suffix) => `/api/services/${encodeURIComponent(fn.path)}/${String(suffix).replace(/^\/+/, '')}`
 
 const EMPTY = {
   loaded: false,
