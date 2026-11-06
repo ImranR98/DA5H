@@ -97,6 +97,14 @@ test('DA5H masks the ntfy token and keeps it when the mask is saved back', async
 
   const rejected = await putConfig(base, { ntfy: { url: 'ftp://bad', token: '' } })
   assert.equal(rejected.status, 400)
+  const protocolRelative = await putConfig(base, {
+    functions: [{ path: 'evil', name: 'Evil', url: '//evil.example/', kind: 'scheduled' }],
+  })
+  assert.equal(protocolRelative.status, 400)
+  const traversalPath = await putConfig(base, {
+    functions: [{ path: '..', name: 'Bad', url: '/x', kind: 'scheduled' }],
+  })
+  assert.equal(traversalPath.status, 400)
 })
 
 test('DA5H relays app notifications to the configured ntfy topic', async (t) => {
@@ -206,7 +214,7 @@ test('DA5H proxies configured service reads and forwards the identity', async (t
   const seen = []
   const upstream = http.createServer((req, res) => {
     seen.push({ method: req.method, path: req.url, headers: req.headers })
-    if (req.url === '/redirect') {
+    if (req.url === '/api/state') {
       res.writeHead(302, { Location: '/secret' }).end()
       return
     }
@@ -241,8 +249,13 @@ test('DA5H proxies configured service reads and forwards the identity', async (t
     assert.equal(response.status, 400, bad)
   }
 
+  // Non-allowlisted service paths never reach the upstream (notably /token).
+  const blocked = await fetch(`${base}/api/services/demo/token`)
+  assert.equal(blocked.status, 404)
+  assert.equal(seen.length, 1)
+
   // Redirects are surfaced, never followed by the proxy.
-  const redirect = await fetch(`${base}/api/services/demo/redirect`, { redirect: 'manual' })
+  const redirect = await fetch(`${base}/api/services/demo/api/state`, { redirect: 'manual' })
   assert.equal(redirect.status, 302)
-  assert.equal(seen.at(-1).path, '/redirect')
+  assert.equal(seen.at(-1).path, '/api/state')
 })

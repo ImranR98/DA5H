@@ -9,6 +9,18 @@ import { createLockdownApp } from './lockdown/server.mjs'
 const here = path.dirname(fileURLToPath(import.meta.url))
 const STATIC_DIR = path.join(here, '..', 'static')
 
+// The dashboard only needs a handful of read endpoints from each sibling.
+// Everything else (notably credential/token routes) stays unreachable through
+// the proxy even though DA5H itself can route to the service.
+const SERVICE_PATHS = {
+  scheduled: ['/api/health', '/api/state'],
+  watxt: ['/api/health', '/api/state'],
+  flow: ['/api/health', '/api/jobs'],
+  balance: ['/api/health', '/status'],
+  lockdown: ['/api/health', '/api/status'],
+}
+const allowedServicePaths = (kind) => SERVICE_PATHS[kind] ?? ['/api/health']
+
 // DA5H is one Express app: the dashboard shell, the notification relay and the
 // Lockdown module. Lockdown keeps its own server/blocker split so the
 // privileged nftables process remains separate from the web tier.
@@ -64,6 +76,9 @@ export function createDa5hApp(options = {}) {
         const hasControl = [...decoded].some((ch) => ch.charCodeAt(0) < 32 || ch.charCodeAt(0) === 127)
         if (!decoded.startsWith('/') || decoded.includes('\\') || decoded.includes('..') || hasControl) {
           return res.status(400).json({ error: 'Invalid service path' })
+        }
+        if (!allowedServicePaths(fn.kind).includes(decoded.replace(/\/+$/, ''))) {
+          return res.status(404).json({ error: 'Unknown service endpoint' })
         }
 
         const host = req.headers.host ?? '127.0.0.1:8080'

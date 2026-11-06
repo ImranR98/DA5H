@@ -98,10 +98,16 @@ export function validateConfig(cfg) {
   const seen = new Set()
   for (const fn of cfg.functions ?? []) {
     if (!fn.path || !fn.name) throw new ValidationError('every function needs a path and a name')
-    if (!/^[A-Za-z0-9._-]+$/.test(fn.path)) throw new ValidationError(`function path is invalid: ${fn.path}`)
+    if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(fn.path) || fn.path === '.' || fn.path === '..') {
+      throw new ValidationError(`function path is invalid: ${fn.path}`)
+    }
     for (const field of ['url', 'internalUrl']) {
       const value = fn[field]
-      if (value && !/^https?:\/\//i.test(value) && !value.startsWith('/')) {
+      if (!value) continue
+      if (value.startsWith('//') || value.startsWith('\\\\')) {
+        throw new ValidationError(`function ${fn.path}: ${field} must not be protocol-relative`)
+      }
+      if (!/^https?:\/\//i.test(value) && !value.startsWith('/')) {
         throw new ValidationError(`function ${fn.path}: ${field} must be absolute or start with /`)
       }
     }
