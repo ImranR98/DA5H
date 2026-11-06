@@ -5,6 +5,7 @@ import {
   Dialog,
   formatDateTime,
   formatDuration,
+  getBrand,
   getJson,
   postJson,
   showToast,
@@ -13,6 +14,8 @@ import {
   usePolling,
 } from '@dscpln/ui-kit'
 import './lockdown.css'
+
+const LOCKDOWN_BASE = typeof window !== 'undefined' && window.location.pathname.startsWith('/lockdown') ? '/lockdown' : ''
 
 const DURATIONS = [
   { value: '600', label: '10 minutes' },
@@ -99,7 +102,7 @@ export default function App() {
 
   const refresh = useCallback(async () => {
     try {
-      const next = await getJson('api/status')
+      const next = await getJson(`${LOCKDOWN_BASE}/api/status`)
       setStatus(next)
       setStatusError('')
     } catch (err) {
@@ -157,10 +160,10 @@ export default function App() {
     setBusy(true)
     try {
       if (action.clear) {
-        await postJson('api/clear', { confirmation: phrase })
+        await postJson(`${LOCKDOWN_BASE}/api/clear`, { confirmation: phrase })
         showToast('All port blocks cleared')
       } else {
-        await postJson('api/block', {
+        await postJson(`${LOCKDOWN_BASE}/api/block`, {
           preset: action.preset.id,
           durationSeconds: action.durationSeconds,
           confirmation: phrase,
@@ -200,6 +203,7 @@ export default function App() {
   return (
     <>
       <AppHeader
+        brand={getBrand('da5h')}
         name="Lockdown"
         meta={<span className={`status-tag status-tag--${tone === 'warn' ? 'blocked' : tone === 'over' ? 'interrupted' : 'ok'}`} data-testid="status">{meta}</span>}
         metaTools={status ? `checked ${formatDateTime(status.now)}` : null}

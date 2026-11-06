@@ -7,7 +7,7 @@ import {
   validateBlockRequest,
   validateClearRequest,
   validateConfig,
-} from '../config.mjs'
+} from '../../lockdown/config.mjs'
 
 const raw = {
   presets: [

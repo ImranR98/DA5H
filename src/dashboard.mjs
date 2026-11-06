@@ -1,28 +1,51 @@
-#!/usr/bin/env node
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
 import {
   asyncRoute,
   configStore,
-  createApp,
   isPrivateHost,
   Notifier,
   SECRET_MASK,
   ValidationError,
 } from '@dscpln/server-kit'
 
-// Portal: the D$CPLN root page. Always served at the host root (BASE_PATH is
-// intentionally ignored); it links to every function subpath and owns the
-// notification settings every app posts through (POST /api/notify).
+// DA5H dashboard settings and notification relay. The dashboard is the only
+// component that knows the ntfy URL/token; the other apps post to /api/notify.
 
-const here = path.dirname(fileURLToPath(import.meta.url))
+const env = (name, fallback) => String(process.env[name] ?? fallback).trim()
 
 export const DEFAULT_FUNCTIONS = [
-  { path: 'balance', icon: 'dollar', name: 'Balance XLSX', description: 'Budget dashboard backed by your Excel workbook', kind: 'balance' },
-  { path: 'pipelines', icon: 'workflow', name: 'File Pipelines', description: 'Watch folders, organize media, and keep originals safe', kind: 'pipelines' },
-  { path: 'watxt', icon: 'message', name: 'WhatsApp TXT', description: 'Browse, import and merge WhatsApp chat exports', kind: 'watxt' },
-  { path: 'tasks', icon: 'wrench', name: 'Task Runner', description: 'Run scheduled and on-demand tasks', kind: 'tasks' },
-  { path: 'lockdown', icon: 'lock', name: 'Lockdown', description: 'Temporarily block configured host ports', kind: 'lockdown' },
+  {
+    path: 'dscpln',
+    url: env('DSCPLN_URL', 'http://localhost:3300/'),
+    icon: 'dollar',
+    name: 'D$CPLN',
+    description: 'Budget dashboard backed by the live workbook',
+    kind: 'balance',
+  },
+  {
+    path: 'watxt',
+    url: env('WATXT_URL', 'http://localhost:8787/'),
+    icon: 'message',
+    name: 'W@TXT',
+    description: 'Browse, import and merge WhatsApp chat exports',
+    kind: 'watxt',
+  },
+  {
+    path: 'fl0w',
+    url: env('FL0W_URL', 'http://localhost:8085/'),
+    icon: 'workflow',
+    name: 'FL0W',
+    description: 'Scheduled tasks and file pipelines',
+    kind: 'flow',
+  },
+  {
+    path: 'lockdown',
+    url: '/lockdown',
+    icon: 'lock',
+    name: 'Lockdown',
+    description: 'Temporarily block configured host ports',
+    kind: 'lockdown',
+  },
 ]
 
 export const DEFAULT_CONFIG = {
@@ -34,21 +57,24 @@ const MAX_MESSAGE = 4096
 const MAX_TITLE = 200
 const MAX_TAGS = 10
 const PRIORITIES = new Set(['max', 'urgent', 'high', 'default', 'low', 'min'])
-
-const FUNCTION_KINDS = new Set(['scheduled', 'pipelines', 'watxt', 'tasks', 'balance', 'lockdown'])
+const FUNCTION_KINDS = new Set(['scheduled', 'flow', 'watxt', 'balance', 'lockdown'])
 
 export function normalizeFunctions(value) {
   if (!Array.isArray(value)) return DEFAULT_FUNCTIONS
   return value
     .map((entry) => (entry && typeof entry === 'object' ? entry : null))
     .filter(Boolean)
-    .map((entry) => ({
-      path: String(entry.path ?? '').replace(/^\/+|\/+$/g, ''),
-      icon: String(entry.icon ?? 'boxes'),
-      name: String(entry.name ?? entry.path ?? ''),
-      description: String(entry.description ?? ''),
-      kind: FUNCTION_KINDS.has(entry.kind) ? entry.kind : 'scheduled',
-    }))
+    .map((entry) => {
+      const fnPath = String(entry.path ?? '').replace(/^\/+|\/+$/g, '')
+      return {
+        path: fnPath,
+        url: String(entry.url ?? '').trim() || `/${fnPath}`,
+        icon: String(entry.icon ?? 'boxes'),
+        name: String(entry.name ?? entry.path ?? ''),
+        description: String(entry.description ?? ''),
+        kind: FUNCTION_KINDS.has(entry.kind) ? entry.kind : 'scheduled',
+      }
+    })
 }
 
 export function normalizeConfig(raw) {
@@ -68,6 +94,9 @@ export function validateConfig(cfg) {
   for (const fn of cfg.functions ?? []) {
     if (!fn.path || !fn.name) throw new ValidationError('every function needs a path and a name')
     if (!/^[A-Za-z0-9._-]+$/.test(fn.path)) throw new ValidationError(`function path is invalid: ${fn.path}`)
+    if (fn.url && !/^https?:\/\//i.test(fn.url) && !fn.url.startsWith('/')) {
+      throw new ValidationError(`function ${fn.path}: url must be absolute or start with /`)
+    }
     if (seen.has(fn.path)) throw new ValidationError(`duplicate function path: ${fn.path}`)
     seen.add(fn.path)
   }
@@ -86,13 +115,9 @@ function normalizeTags(value) {
     .slice(0, MAX_TAGS)
 }
 
-export function createPortalApp(options = {}) {
-  const dataDir = options.dataDir ?? process.env.DSCPLN_DATA_DIR ?? '/data'
-  const configFile = options.configFile ?? process.env.DSCPLN_CONFIG_FILE ?? path.join(dataDir, 'config.json')
+export function createDashboard(options = {}) {
+  const configFile = options.configFile ?? process.env.DA5H_CONFIG ?? path.resolve('config/config.json')
   const log = options.log ?? ((line) => console.log(line))
-  const port = Number(process.env.PORT ?? 8080)
-  const host = process.env.HOST ?? '0.0.0.0'
-
   const config = configStore(configFile, {
     defaults: DEFAULT_CONFIG,
     normalize: normalizeConfig,
@@ -100,8 +125,6 @@ export function createPortalApp(options = {}) {
     secrets: ['ntfy.token'],
   })
 
-  // Resolves a request payload against the stored (or a draft) channel and
-  // sends it. Returns { status, body } so callers stay thin.
   const dispatch = async (payload, { draft = null } = {}) => {
     const message = String(payload?.message ?? '').trim()
     if (!message) return { status: 400, body: { error: 'message is required' } }
@@ -116,7 +139,7 @@ export function createPortalApp(options = {}) {
     if (!/^https?:\/\//i.test(url)) {
       return { status: 400, body: { error: 'ntfy URL must start with http:// or https://' } }
     }
-    const title = String(payload.title ?? '').trim().slice(0, MAX_TITLE) || 'D$CPLN'
+    const title = String(payload.title ?? '').trim().slice(0, MAX_TITLE) || 'DA5H'
     const result = await new Notifier({ ntfy: { url, token }, click: payload.click }).notify(message, {
       title,
       priority: normalizePriority(payload.priority),
@@ -130,22 +153,15 @@ export function createPortalApp(options = {}) {
   }
 
   const routes = (router) => {
-    // The card grid is deployment-specific: show only the apps this host
-    // actually runs. The default list is the full generic suite.
     router.get('/api/functions', (req, res) => {
       res.json({ functions: config.get()?.functions ?? DEFAULT_FUNCTIONS })
     })
 
-    // Apps relay every notification through here; the portal is the only
-    // component that knows the ntfy URL and token.
     router.post('/api/notify', asyncRoute(async (req, res) => {
       const { status, body } = await dispatch(req.body ?? {})
       res.status(status).json(body)
     }))
 
-    // Settings UI test button: may carry a not-yet-saved draft URL/token. A
-    // draft may only target the configured host; any other private/LAN
-    // destination is refused (SSRF guard).
     router.post('/api/notify/test', asyncRoute(async (req, res) => {
       const body = req.body ?? {}
       const draftUrl = String(body.url ?? '').trim()
@@ -169,35 +185,17 @@ export function createPortalApp(options = {}) {
         }
       }
       const { status, body: result } = await dispatch(
-        { message: 'Portal test notification', title: 'D$CPLN - Portal test', priority: 'low', tags: ['white_check_mark'] },
+        { message: 'DA5H test notification', title: 'DA5H - test', priority: 'low', tags: ['white_check_mark'] },
         { draft: { url: body.url, token: body.token } },
       )
       res.status(status).json(result)
     }))
   }
 
-  const app = createApp({
-    title: 'Portal',
-    pageTitle: 'D$CPLN',
-    basePath: '',
-    staticDir: path.join(here, 'static'),
-    config,
-    routes,
-    log,
-  })
-
   const start = async () => {
     await config.load()
     return { config }
   }
 
-  return { app, config, start, port, host }
-}
-
-if (process.argv[1] && import.meta.url === `file://${path.resolve(process.argv[1])}`) {
-  const portal = createPortalApp()
-  await portal.start()
-  portal.app.listen(portal.port, portal.host, () => {
-    console.log(`D$CPLN portal listening on http://${portal.host}:${portal.port}`)
-  })
+  return { config, routes, start }
 }

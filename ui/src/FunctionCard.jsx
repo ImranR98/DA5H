@@ -9,7 +9,7 @@ export default function FunctionCard({ fn, card }) {
   return (
     <a
       className={`portal-card${offline ? ' is-offline' : ''}`}
-      href={`/${fn.path}`}
+      href={fn.url || `/${fn.path}`}
       data-testid={`card-${fn.path}`}
       aria-disabled={offline}
       onClick={(event) => { if (offline) event.preventDefault() }}

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { TASK_STALE_MS, taskBucket } from '../ui/src/taskBuckets.js'
+import { TASK_STALE_MS, taskBucket } from '../../ui/src/taskBuckets.js'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const NOW = Date.UTC(2026, 9, 20, 12)

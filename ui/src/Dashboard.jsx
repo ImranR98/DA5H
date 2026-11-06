@@ -7,11 +7,11 @@ import {
   RefreshCw,
   Settings,
   Workflow,
-  Wrench,
 } from 'lucide-react'
 import {
   AppHeader,
   formatBytes,
+  getBrand,
   formatDateTime,
   formatNumber,
   formatTime,
@@ -31,17 +31,22 @@ const ICONS = {
   dollar: DollarSign,
   message: MessageSquareText,
   workflow: Workflow,
-  wrench: Wrench,
   lock: Lock,
 }
 
 const DEFAULT_FUNCTIONS = [
-  { path: 'balance', icon: 'dollar', name: 'Balance XLSX', description: 'Budget dashboard backed by your Excel workbook', kind: 'balance' },
-  { path: 'pipelines', icon: 'workflow', name: 'File Pipelines', description: 'Watch folders, organize media, and keep originals safe', kind: 'pipelines' },
-  { path: 'watxt', icon: 'message', name: 'WhatsApp TXT', description: 'Browse, import and merge WhatsApp chat exports', kind: 'watxt' },
-  { path: 'tasks', icon: 'wrench', name: 'Task Runner', description: 'Run scheduled and on-demand tasks', kind: 'tasks' },
-  { path: 'lockdown', icon: 'lock', name: 'Lockdown', description: 'Temporarily block configured host ports', kind: 'lockdown' },
+  { path: 'dscpln', url: 'http://localhost:3300/', icon: 'dollar', name: 'D$CPLN', description: 'Budget dashboard backed by the live workbook', kind: 'balance' },
+  { path: 'watxt', url: 'http://localhost:8787/', icon: 'message', name: 'W@TXT', description: 'Browse, import and merge WhatsApp chat exports', kind: 'watxt' },
+  { path: 'fl0w', url: 'http://localhost:8085/', icon: 'workflow', name: 'FL0W', description: 'Scheduled tasks and file pipelines', kind: 'flow' },
+  { path: 'lockdown', url: '/lockdown', icon: 'lock', name: 'Lockdown', description: 'Temporarily block configured host ports', kind: 'lockdown' },
 ]
+
+const fnBase = (fn) => {
+  const url = fn.url || `/${fn.path}`
+  return url.endsWith('/') ? url : `${url}/`
+}
+
+const fnApi = (fn, suffix) => `${fnBase(fn)}${String(suffix).replace(/^\/+/, '')}`
 
 const EMPTY = {
   loaded: false,
@@ -73,7 +78,7 @@ const SETTINGS_FIELDS = [
     path: 'ntfy.url',
     label: 'ntfy URL',
     placeholder: 'http://ntfy.example:3000/<topic>',
-    help: 'Every app sends its notifications through the portal; this URL and token are the only ones used to reach ntfy.',
+    help: 'Every app sends its notifications through DA5H; this URL and token are the only ones used to reach ntfy.',
   },
   {
     path: 'ntfy.token',
@@ -84,7 +89,7 @@ const SETTINGS_FIELDS = [
 ]
 
 async function scheduledDetail(fn) {
-  const state = await getJson(`${fn.path}/api/state`)
+  const state = await getJson(fnApi(fn, 'api/state'))
   const last = state.lastRun
   let primary = { value: 'Never', label: 'last run', tone: '' }
   let issue = false
@@ -107,48 +112,8 @@ async function scheduledDetail(fn) {
   }
 }
 
-async function pipelinesDetail(fn) {
-  const state = await getJson(`${fn.path}/api/state`)
-  let active = 0
-  let review = 0
-  let errors = 0
-  let lastEventAt = 0
-  const folders = state.folders ?? []
-  for (const folder of folders) {
-    const counts = folder.counts ?? {}
-    active += (counts.pending ?? 0) + (counts.queued ?? 0) + (counts.processing ?? 0)
-    review += counts.review ?? 0
-    errors += (counts.error ?? 0) + (counts.conflict ?? 0)
-    lastEventAt = Math.max(lastEventAt, asNumber(folder.lastEventAt))
-  }
-  const paused = Boolean(state.paused)
-  const dryRun = Boolean(state.dryRun)
-  const footer = paused
-    ? { text: 'Paused', tone: 'warn' }
-    : dryRun
-      ? { text: 'Dry run · no files are written', tone: 'warn' }
-      : lastEventAt
-        ? { text: `Last change ${humanAgo(lastEventAt)}`, tone: '' }
-        : { text: 'Watching for changes', tone: '' }
-  return {
-    issue: errors > 0,
-    kicker: `${folders.length} folder${folders.length === 1 ? '' : 's'}`,
-    primary: {
-      value: active ? formatNumber(active) : 'Idle',
-      label: active ? 'in flight' : 'queue',
-      tone: active ? 'ok' : '',
-    },
-    stats: [
-      stat('Review', formatNumber(review), review ? 'warn' : ''),
-      stat('Errors', formatNumber(errors), errors ? 'over' : ''),
-      stat('Folders', formatNumber(folders.length)),
-    ],
-    footer,
-  }
-}
-
 async function watxtDetail(fn) {
-  const state = await getJson(`${fn.path}/api/state`)
+  const state = await getJson(fnApi(fn, 'api/state'))
   const skipped = Array.isArray(state.skipped) ? state.skipped.length : asNumber(state.skipped)
   const indexed = state.indexedAt ? `Indexed ${humanAgo(Date.parse(state.indexedAt))}` : 'Not indexed yet'
   return {
@@ -164,26 +129,29 @@ async function watxtDetail(fn) {
   }
 }
 
-async function tasksDetail(fn) {
-  const data = await getJson(`${fn.path}/api/tasks`)
-  const tasks = (data.groups ?? []).flatMap((group) => group.tasks ?? [])
-  const scheduled = tasks.filter((task) => task.schedule?.enabled)
+async function flowDetail(fn) {
+  const data = await getJson(fnApi(fn, 'api/jobs'))
+  const jobs = data.jobs ?? []
+  const tasks = jobs.filter((job) => job.type === 'task')
+  const pipelines = jobs.filter((job) => job.type === 'pipeline')
+  const scheduled = jobs.filter((job) => job.schedule?.enabled)
+  const running = jobs.filter((job) => job.running)
+  const issues = jobs.filter((job) => job.pill === 'fail' || job.pill === 'over').length
   const counts = { stale: 0, recent: 0, errors: 0 }
   for (const task of tasks) counts[taskBucket(task)] += 1
-  const stale = counts.stale
-  const recent = counts.recent
-  const errors = counts.errors
   const next = scheduled
-    .filter((task) => Number.isFinite(task.next_run))
+    .filter((job) => Number.isFinite(job.next_run))
     .sort((a, b) => a.next_run - b.next_run)[0] ?? null
   return {
-    issue: errors > 0,
-    kicker: `${tasks.length} task${tasks.length === 1 ? '' : 's'}`,
-    primary: { value: formatNumber(scheduled.length), label: 'scheduled', tone: scheduled.length ? 'ok' : '' },
+    issue: issues > 0,
+    kicker: `${tasks.length} task${tasks.length === 1 ? '' : 's'} · ${pipelines.length} pipeline${pipelines.length === 1 ? '' : 's'}`,
+    primary: running.length
+      ? { value: formatNumber(running.length), label: 'running', tone: 'ok' }
+      : { value: formatNumber(scheduled.length), label: 'scheduled', tone: scheduled.length ? 'ok' : '' },
     stats: [
-      stat('Stale', formatNumber(stale), stale ? 'warn' : ''),
-      stat('Recent', formatNumber(recent), recent ? 'ok' : ''),
-      stat('Errors', formatNumber(errors), errors ? 'over' : ''),
+      stat('Stale', formatNumber(counts.stale), counts.stale ? 'warn' : ''),
+      stat('Recent', formatNumber(counts.recent), counts.recent ? 'ok' : ''),
+      stat('Issues', formatNumber(issues), issues ? 'over' : ''),
     ],
     footer: next
       ? { text: `Next: ${next.name} · ${formatDateTime(next.next_run)}`, tone: '' }
@@ -192,7 +160,7 @@ async function tasksDetail(fn) {
 }
 
 async function balanceDetail(fn) {
-  const status = await getJson(`${fn.path}/status`)
+  const status = await getJson(fnApi(fn, 'status'))
   const summary = status.summary
   if (!summary) {
     const over = status.overBudget ?? []
@@ -239,7 +207,7 @@ async function balanceDetail(fn) {
 }
 
 async function lockdownDetail(fn) {
-  const state = await getJson(`${fn.path}/api/status`)
+  const state = await getJson(fnApi(fn, 'api/status'))
   const presets = state.presets ?? []
   const active = presets.filter((preset) => preset.active)
   const expiries = active
@@ -265,9 +233,8 @@ async function lockdownDetail(fn) {
 
 const DETAILS = {
   scheduled: scheduledDetail,
-  pipelines: pipelinesDetail,
+  flow: flowDetail,
   watxt: watxtDetail,
-  tasks: tasksDetail,
   balance: balanceDetail,
   lockdown: lockdownDetail,
 }
@@ -336,7 +303,7 @@ export default function App() {
     const next = {}
     await Promise.all(
       list.map(async (fn) => {
-        const online = await ping(`${fn.path}/api/health`)
+        const online = await ping(fnApi(fn, 'api/health'))
         const previous = cardsRef.current[fn.path]
         let card = { ...EMPTY, loaded: true, online }
         if (online) {
@@ -389,7 +356,8 @@ export default function App() {
   return (
     <>
       <AppHeader
-        meta="Self-hosted apps for your personal data."
+        brand={getBrand('da5h')}
+        meta="Infrastructure dashboard."
         metaTools={(
           <>
             <span className={`portal-attention ${attention ? 'is-over' : 'is-ok'}`} data-testid="attention">
@@ -425,7 +393,7 @@ export default function App() {
         ref={settingsRef}
         fields={SETTINGS_FIELDS}
         schedule={false}
-        notice="Notifications for every app are sent through the portal to the ntfy topic configured here."
+        notice="Notifications for every app are sent through DA5H to the ntfy topic configured here."
         onsave={saveSettings}
         extra={settingsExtra}
       />

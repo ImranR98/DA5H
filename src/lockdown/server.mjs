@@ -20,6 +20,9 @@ export function createLockdownApp(options = {}) {
   const blockerToken = String(options.blockerToken ?? process.env.PORT_BLOCKER_TOKEN ?? '')
   const fetchImpl = options.fetchImpl ?? fetch
   const basePath = options.basePath ?? process.env.BASE_PATH ?? ''
+  const staticDir = options.staticDir === undefined
+    ? path.join(here, 'static')
+    : options.staticDir
   const log = options.log ?? ((line) => console.log(line))
   const port = Number(options.port ?? process.env.PORT ?? 8086)
   const host = options.host ?? process.env.HOST ?? '0.0.0.0'
@@ -105,8 +108,9 @@ export function createLockdownApp(options = {}) {
 
   const app = createApp({
     title: 'Lockdown',
+    brand: 'DA5H',
     basePath,
-    staticDir: path.join(here, 'static'),
+    staticDir,
     routes,
     auth: options.auth,
     log,

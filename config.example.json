@@ -1,0 +1,40 @@
+{
+  "ntfy": {
+    "url": "",
+    "token": ""
+  },
+  "functions": [
+    {
+      "path": "dscpln",
+      "url": "https://dscpln.example/",
+      "icon": "dollar",
+      "name": "D$CPLN",
+      "description": "Budget dashboard backed by the live workbook",
+      "kind": "balance"
+    },
+    {
+      "path": "watxt",
+      "url": "https://watxt.example/",
+      "icon": "message",
+      "name": "W@TXT",
+      "description": "Browse, import and merge WhatsApp chat exports",
+      "kind": "watxt"
+    },
+    {
+      "path": "fl0w",
+      "url": "https://fl0w.example/",
+      "icon": "workflow",
+      "name": "FL0W",
+      "description": "Scheduled tasks and file pipelines",
+      "kind": "flow"
+    },
+    {
+      "path": "lockdown",
+      "url": "/lockdown",
+      "icon": "lock",
+      "name": "Lockdown",
+      "description": "Temporarily block configured host ports",
+      "kind": "lockdown"
+    }
+  ]
+}

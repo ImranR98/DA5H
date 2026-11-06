@@ -1,0 +1,16 @@
+node_modules
+.git
+.gitignore
+**/node_modules
+**/tests
+**/static
+config
+data
+kit/.git
+kit/node_modules
+**/*.log
+**/.env
+**/.env.*
+**/secrets*
+**/*.pem
+**/*.key

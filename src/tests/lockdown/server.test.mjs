@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { once } from 'node:events'
-import { createLockdownApp } from '../server.mjs'
+import { createLockdownApp } from '../../lockdown/server.mjs'
 
 const presets = [
   {
