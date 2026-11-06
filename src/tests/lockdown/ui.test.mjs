@@ -79,7 +79,7 @@ test('the lockdown UI renders configured presets and confirms an action', async 
   const page = await browser.newPage()
   const errors = []
   page.on('pageerror', (err) => errors.push(err))
-  await page.goto(base)
+  await page.goto(`${base}/lockdown`)
   await page.waitForSelector('[data-testid="preset-public-web"]')
   assert.equal(await page.locator('[data-testid="state-public-web"]').textContent(), 'Open')
   assert.match(await page.locator('body').innerText(), /A host reboot clears all blocks/)
