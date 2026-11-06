@@ -24,7 +24,7 @@
     },
     {
       "path": "fl0w",
-      "url": "https://fl0w.example/",
+      "url": "https://flow.example/",
       "icon": "workflow",
       "name": "FL0W",
       "description": "Scheduled tasks and file pipelines",

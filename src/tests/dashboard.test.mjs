@@ -118,7 +118,7 @@ test('DA5H relays app notifications to the configured ntfy topic', async (t) => 
     title: 'FL0W - File Pipelines',
     priority: 'low',
     tags: ['white_check_mark'],
-    click: 'https://fl0w.example/',
+    click: 'https://flow.example/',
   })
   assert.equal(response.status, 200)
   assert.deepEqual(await response.json(), { ok: true })
@@ -127,7 +127,7 @@ test('DA5H relays app notifications to the configured ntfy topic', async (t) => 
   assert.equal(headers.title, 'FL0W - File Pipelines')
   assert.equal(headers.priority, 'low')
   assert.equal(headers.tags, 'white_check_mark')
-  assert.equal(headers.click, 'https://fl0w.example/')
+  assert.equal(headers.click, 'https://flow.example/')
   assert.equal(headers.authorization, 'Bearer tk_test')
   assert.match(body, /PXL_1234\.jpg/)
 })
@@ -177,7 +177,7 @@ test('DA5H renders the service cards and the DA5H brand', async (t) => {
     functions: [
       { path: 'dscpln', url: 'https://dscpln.example/', icon: 'dollar', name: 'D$CPLN', description: 'Budget', kind: 'balance' },
       { path: 'watxt', url: 'https://watxt.example/', icon: 'message', name: 'W@TXT', description: 'Chats', kind: 'watxt' },
-      { path: 'fl0w', url: 'https://fl0w.example/', icon: 'workflow', name: 'FL0W', description: 'Jobs', kind: 'flow' },
+      { path: 'fl0w', url: 'https://flow.example/', icon: 'workflow', name: 'FL0W', description: 'Jobs', kind: 'flow' },
       { path: 'lockdown', url: '/lockdown', icon: 'lock', name: 'Lockdown', description: 'Ports', kind: 'lockdown' },
     ],
   })
@@ -192,7 +192,7 @@ test('DA5H renders the service cards and the DA5H brand', async (t) => {
   await page.goto(`${base}/`)
   await page.waitForSelector('[data-testid="card-lockdown"]')
   const links = await page.$$eval('[data-testid^="card-"]', (cards) => cards.map((card) => card.getAttribute('href')))
-  assert.deepEqual(links, ['https://dscpln.example/', 'https://watxt.example/', 'https://fl0w.example/', '/lockdown'])
+  assert.deepEqual(links, ['https://dscpln.example/', 'https://watxt.example/', 'https://flow.example/', '/lockdown'])
   assert.equal(await page.title(), 'DA5H')
   assert.match(await page.textContent('h1'), /DA5H/)
   await page.waitForFunction(() => document.querySelector('[data-testid="theme-toggle"]')?.innerHTML?.includes('<svg'))
