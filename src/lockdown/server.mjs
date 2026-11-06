@@ -21,7 +21,7 @@ export function createLockdownApp(options = {}) {
   const fetchImpl = options.fetchImpl ?? fetch
   const basePath = options.basePath ?? process.env.BASE_PATH ?? ''
   const staticDir = options.staticDir === undefined
-    ? path.join(here, 'static')
+    ? path.join(here, '..', '..', 'static')
     : options.staticDir
   const log = options.log ?? ((line) => console.log(line))
   const port = Number(options.port ?? process.env.PORT ?? 8086)
